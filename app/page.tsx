@@ -275,7 +275,7 @@ function TaskRow({
   );
 }
 
-/** タイマーパネル */
+/** タイマーパネル（超過対応） */
 function TimerPanel({
   task, onDone, onClose,
 }: {
@@ -283,54 +283,76 @@ function TimerPanel({
   onDone: () => void;
   onClose: () => void;
 }) {
+  // seconds > 0: カウントダウン中  seconds === 0 かつ overtime > 0: 超過中
   const [seconds, setSeconds] = useState(task.minutes * 60);
+  const [overtime, setOvertime] = useState(0); // 超過秒数
   const [running, setRunning] = useState(false);
-  const [finished, setFinished] = useState(false);
+  const [phase, setPhase] = useState<"countdown" | "overtime" | "idle">("countdown");
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const tick = useCallback(() => {
-    setSeconds((s) => {
-      if (s <= 1) {
-        clearInterval(intervalRef.current!);
-        setRunning(false);
-        setFinished(true);
-        return 0;
+  const totalSec = task.minutes * 60;
+  const elapsedRef = useRef(0); // 経過秒
+
+  function startInterval() {
+    intervalRef.current = setInterval(() => {
+      elapsedRef.current += 1;
+      const elapsed = elapsedRef.current;
+      if (elapsed <= totalSec) {
+        setSeconds(totalSec - elapsed);
+        if (elapsed === totalSec) setPhase("overtime");
+      } else {
+        setOvertime(elapsed - totalSec);
       }
-      return s - 1;
-    });
-  }, []);
+    }, 1000);
+  }
 
   function toggle() {
     if (running) {
       clearInterval(intervalRef.current!);
       setRunning(false);
     } else {
-      if (finished) {
-        setSeconds(task.minutes * 60);
-        setFinished(false);
-      }
-      intervalRef.current = setInterval(tick, 1000);
+      startInterval();
       setRunning(true);
     }
   }
 
   function reset() {
     clearInterval(intervalRef.current!);
+    elapsedRef.current = 0;
     setRunning(false);
-    setFinished(false);
-    setSeconds(task.minutes * 60);
+    setPhase("countdown");
+    setSeconds(totalSec);
+    setOvertime(0);
+  }
+
+  function extendTime(extraMin: number) {
+    clearInterval(intervalRef.current!);
+    const extraSec = extraMin * 60;
+    // 現在の超過分を帳消しにして追加秒数からカウント
+    elapsedRef.current = Math.max(0, totalSec - extraSec);
+    setPhase("countdown");
+    setOvertime(0);
+    setSeconds(extraSec);
+    if (running) startInterval();
   }
 
   useEffect(() => () => clearInterval(intervalRef.current!), []);
 
-  const pct = 1 - seconds / (task.minutes * 60);
+  // 進捗割合（超過中は1.0固定）
+  const pct = phase === "overtime" ? 1 : 1 - seconds / totalSec;
   const r = 54;
   const circ = 2 * Math.PI * r;
+  const isOver = phase === "overtime";
 
   return (
-    <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-indigo-100">
+    <div className={`rounded-2xl p-5 shadow-sm transition-colors ${
+      isOver ? "bg-red-50 ring-1 ring-red-200" : "bg-white ring-1 ring-indigo-100"
+    }`}>
+      {/* Header */}
       <div className="mb-3 flex items-center justify-between">
-        <p className="text-xs font-semibold text-indigo-600 uppercase tracking-wide">タイマー</p>
+        <p className={`text-xs font-semibold uppercase tracking-wide ${isOver ? "text-red-500" : "text-indigo-600"}`}>
+          {isOver ? "⚠️ 時間超過中" : "タイマー"}
+        </p>
         <button onClick={onClose} className="text-gray-300 hover:text-gray-500">
           <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -339,24 +361,29 @@ function TimerPanel({
       </div>
       <p className="mb-4 truncate text-sm font-medium text-gray-700">{task.label}</p>
 
-      {/* Circle progress */}
+      {/* Circle */}
       <div className="flex justify-center mb-4">
         <div className="relative h-32 w-32">
           <svg className="h-full w-full -rotate-90" viewBox="0 0 120 120">
-            <circle cx="60" cy="60" r={r} fill="none" stroke="#e5e7eb" strokeWidth="8" />
+            <circle cx="60" cy="60" r={r} fill="none" stroke={isOver ? "#fee2e2" : "#e5e7eb"} strokeWidth="8" />
             <circle
               cx="60" cy="60" r={r} fill="none"
-              stroke={finished ? "#22c55e" : "#6366f1"}
+              stroke={isOver ? "#ef4444" : "#6366f1"}
               strokeWidth="8"
               strokeDasharray={circ}
-              strokeDashoffset={circ * (1 - pct)}
+              strokeDashoffset={isOver ? 0 : circ * (1 - pct)}
               strokeLinecap="round"
               className="transition-all duration-500"
             />
           </svg>
-          <div className="absolute inset-0 flex items-center justify-center">
-            {finished ? (
-              <span className="text-3xl">🎉</span>
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-0.5">
+            {isOver ? (
+              <>
+                <span className="text-xs font-bold text-red-400">超過</span>
+                <span className="font-mono text-xl font-bold tabular-nums text-red-500">
+                  +<TimerDisplay seconds={overtime} />
+                </span>
+              </>
             ) : (
               <TimerDisplay seconds={seconds} />
             )}
@@ -364,37 +391,44 @@ function TimerPanel({
         </div>
       </div>
 
-      {finished ? (
-        <div className="space-y-2">
-          <p className="text-center text-sm font-bold text-green-600">タイム終了！お疲れさまです</p>
-          <button onClick={onDone}
-            className="w-full rounded-xl bg-green-500 py-2.5 text-sm font-bold text-white hover:bg-green-600">
-            ✓ タスク完了にする
-          </button>
-          <button onClick={reset}
-            className="w-full rounded-xl bg-gray-100 py-2 text-sm text-gray-600 hover:bg-gray-200">
-            もう一度
-          </button>
-        </div>
-      ) : (
-        <div className="flex gap-2">
-          <button onClick={toggle}
-            className={`flex-1 rounded-xl py-2.5 text-sm font-bold text-white transition ${
-              running ? "bg-amber-500 hover:bg-amber-600" : "bg-indigo-600 hover:bg-indigo-700"
-            }`}>
-            {running ? "⏸ 一時停止" : "▶ 開始"}
-          </button>
-          <button onClick={reset}
-            className="rounded-xl bg-gray-100 px-3 py-2.5 text-gray-500 hover:bg-gray-200">
-            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-            </svg>
-          </button>
+      {/* 超過中: 延長ボタン */}
+      {isOver && (
+        <div className="mb-3 flex gap-2">
+          {[5, 10, 15].map((m) => (
+            <button key={m} onClick={() => extendTime(m)}
+              className="flex-1 rounded-xl border border-red-200 bg-white py-2 text-sm font-bold text-red-500 hover:bg-red-50 transition">
+              +{m}分
+            </button>
+          ))}
         </div>
       )}
+
+      {/* コントロール */}
+      <div className="flex gap-2">
+        <button onClick={toggle}
+          className={`flex-1 rounded-xl py-2.5 text-sm font-bold text-white transition ${
+            running
+              ? isOver ? "bg-red-400 hover:bg-red-500" : "bg-amber-500 hover:bg-amber-600"
+              : isOver ? "bg-red-500 hover:bg-red-600" : "bg-indigo-600 hover:bg-indigo-700"
+          }`}>
+          {running ? "⏸ 一時停止" : "▶ 再開"}
+        </button>
+        <button onClick={onDone}
+          className="rounded-xl bg-green-500 px-3 py-2.5 text-sm font-bold text-white hover:bg-green-600"
+          title="タスク完了">
+          ✓
+        </button>
+        <button onClick={reset}
+          className="rounded-xl bg-gray-100 px-3 py-2.5 text-gray-500 hover:bg-gray-200">
+          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+        </button>
+      </div>
     </div>
   );
 }
+
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
