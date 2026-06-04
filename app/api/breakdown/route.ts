@@ -29,23 +29,39 @@ export async function POST(req: NextRequest) {
 - タスク名は日本語で、具体的かつ簡潔に
 - 合計時間は課題の規模に応じて適切に設定`;
 
-  const message = await client.messages.create({
-    model: "claude-haiku-4-5",
-    max_tokens: 1024,
-    messages: [{ role: "user", content: prompt }],
-  });
+  try {
+    const message = await client.messages.create({
+      model: "claude-haiku-4-5",
+      max_tokens: 1024,
+      messages: [{ role: "user", content: prompt }],
+    });
 
-  const content = message.content[0];
-  if (content.type !== "text") {
-    return NextResponse.json({ error: "Unexpected response" }, { status: 500 });
+    const content = message.content[0];
+    if (content.type !== "text") {
+      return NextResponse.json({ error: "Unexpected response type" }, { status: 500 });
+    }
+
+    // Extract JSON from response
+    const jsonMatch = content.text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      return NextResponse.json({ error: "Could not parse AI response" }, { status: 500 });
+    }
+
+    const parsed = JSON.parse(jsonMatch[0]);
+    return NextResponse.json(parsed);
+  } catch (e: unknown) {
+    const err = e as { status?: number; message?: string; error?: { type?: string } };
+    console.error("Anthropic API error:", err);
+
+    if (err.status === 401) {
+      return NextResponse.json({ error: "APIキーが無効です。正しいキーを入力してください。" }, { status: 401 });
+    }
+    if (err.status === 429) {
+      return NextResponse.json({ error: "APIの利用制限に達しました。しばらく待ってから再試行してください。" }, { status: 429 });
+    }
+    if (err.status === 400) {
+      return NextResponse.json({ error: `リクエストエラー: ${err.message ?? "不明"}` }, { status: 400 });
+    }
+    return NextResponse.json({ error: `エラー: ${err.message ?? "サーバーエラーが発生しました"}` }, { status: 500 });
   }
-
-  // Extract JSON from response
-  const jsonMatch = content.text.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) {
-    return NextResponse.json({ error: "Could not parse response" }, { status: 500 });
-  }
-
-  const parsed = JSON.parse(jsonMatch[0]);
-  return NextResponse.json(parsed);
 }
