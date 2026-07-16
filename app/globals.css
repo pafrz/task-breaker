@@ -12,15 +12,166 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+/* ─── Nem animations ─────────────────────────────────────────── */
+
+@keyframes nemFloat {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-5px); }
+}
+.nem-float {
+  animation: nemFloat 3.2s ease-in-out infinite;
+}
+
+@keyframes nemBob {
+  0%, 100% { transform: translateY(0) rotate(-2deg); }
+  50%      { transform: translateY(-3px) rotate(2deg); }
+}
+.nem-bob {
+  animation: nemBob 2.4s ease-in-out infinite;
+}
+
+@keyframes bubbleFadeIn {
+  from { opacity: 0; transform: translateY(-4px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0)    scale(1); }
+}
+
+/* ─── Guide animations ──────────────────────────────────────── */
+
+@keyframes pulseRing {
+  0%   { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.55); }
+  70%  { box-shadow: 0 0 0 14px rgba(99, 102, 241, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0); }
+}
+.pulse-ring {
+  animation: pulseRing 1.8s ease-out infinite;
+}
+
+@keyframes pulseRingRed {
+  0%   { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.55); }
+  70%  { box-shadow: 0 0 0 18px rgba(239, 68, 68, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+}
+.pulse-ring-red {
+  animation: pulseRingRed 1.6s ease-out infinite;
+}
+
+@keyframes bounceArrowDown {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(6px); }
+}
+.bounce-arrow-down {
+  animation: bounceArrowDown 1s ease-in-out infinite;
+}
+
+@keyframes bounceArrowRight {
+  0%, 100% { transform: translateX(0); }
+  50%      { transform: translateX(6px); }
+}
+.bounce-arrow-right {
+  animation: bounceArrowRight 1s ease-in-out infinite;
+}
+
+@keyframes glowPulse {
+  0%, 100% { box-shadow: 0 0 0 rgba(99, 102, 241, 0.4), 0 4px 16px rgba(99, 102, 241, 0.25); }
+  50%      { box-shadow: 0 0 22px rgba(99, 102, 241, 0.65), 0 4px 22px rgba(99, 102, 241, 0.4); }
+}
+.glow-pulse {
+  animation: glowPulse 2s ease-in-out infinite;
+}
+
+@keyframes wiggleOnce {
+  0%, 100% { transform: rotate(0deg); }
+  25%      { transform: rotate(-8deg); }
+  75%      { transform: rotate(8deg); }
+}
+.wiggle-once {
+  animation: wiggleOnce 0.6s ease-in-out;
+}
+
+@keyframes softAppear {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.soft-appear {
+  animation: softAppear 0.35s ease-out both;
+}
+
+@keyframes slideUpModal {
+  from { opacity: 0; transform: translateY(100%); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.slide-up-modal {
+  animation: slideUpModal 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.fade-in {
+  animation: fadeIn 0.25s ease-out;
+}
+
+/* ─── Night mode ─────────────────────────────────────────────── */
+/* Applied via data-night="true" on <html> at 23:00-05:00 or user toggle */
+
+html[data-night="true"] body {
+  background: linear-gradient(180deg, #1a1d2e 0%, #1e2138 100%);
+  color: #e4e6f0;
+}
+
+html[data-night="true"] .night-card {
+  background: #262a3d !important;
+  --tw-ring-color: rgba(255, 255, 255, 0.08) !important;
+  color: #e4e6f0;
+}
+
+html[data-night="true"] .night-subcard {
+  background: #2f3448 !important;
+  color: #e4e6f0;
+}
+
+html[data-night="true"] .night-text-body {
+  color: #e4e6f0 !important;
+}
+
+html[data-night="true"] .night-text-muted {
+  color: #8b90a8 !important;
+}
+
+html[data-night="true"] .night-text-accent {
+  color: #7da3ff !important;
+}
+
+html[data-night="true"] .night-border {
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+html[data-night="true"] .night-input {
+  background: #2f3448 !important;
+  color: #e4e6f0;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+/* Warning color enhancement in night mode */
+html[data-night="true"] .night-warn-strong {
+  color: #FF3B4A !important;
+  animation: nightWarnGlow 2s ease-in-out infinite;
+}
+
+@keyframes nightWarnGlow {
+  0%, 100% { box-shadow: 0 0 8px rgba(255, 59, 74, 0.3); }
+  50%      { box-shadow: 0 0 16px rgba(255, 59, 74, 0.6); }
+}
+
+/* ─── Safe area for bottom tab bar ──────────────────────────── */
+
+.tabbar-safe-area {
+  padding-bottom: max(env(safe-area-inset-bottom), 0.5rem);
 }
