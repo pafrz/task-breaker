@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>Task Breaker — CHIBATECH PROTOTYPE Poster</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;600;700;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="poster.css">
+</head>
+<body>
+
+<div class="poster">
+
+  <!-- ============ HEADER ============ -->
+  <header class="poster__header">
+    <div class="brand">
+      <span class="brand__logo">web3/AI</span>
+      <span class="brand__event">CHIBATECH PROTOTYPE · 2026.07.16</span>
+    </div>
+    <div class="brand__meta">千葉工業大学「総合科学特論 web3・AI概論」</div>
+  </header>
+
+  <!-- ============ HERO ============ -->
+  <section class="hero">
+    <div class="hero__badges">
+      <span class="tag tag--pink">A-1 プロダクト</span>
+      <span class="tag tag--outline">Web App · AI Task Breakdown</span>
+    </div>
+    <h1 class="hero__title">Task Breaker</h1>
+    <p class="hero__tagline">
+      <span class="tagline__who">徹夜してしまう自分が</span>
+      <span class="tagline__what">終わりの見えない作業を</span>
+      <span class="tagline__how">音と通知で"区切れる"ようになる</span>
+    </p>
+  </section>
+
+  <!-- ============ 01 BUG / 02 SOLUTION ============ -->
+  <div class="two-col">
+    <section class="card card--bug">
+      <h2 class="section__title">
+        <span class="section__num">01</span>
+        <span class="section__name">バグ</span>
+        <span class="section__sub">実際に困ったこと</span>
+      </h2>
+      <p class="quote quote--bug">
+        「レポートを書いていたら満足できず、気づいたら朝5時。<br>
+        AIと壁打ちしていても、気づいたら朝5時。」
+      </p>
+      <ul class="bullet-list">
+        <li>集中しているとき、本人は時計を見ていない。時間ではなく"満足感"で作業を終えようとするので、終わりが来ない</li>
+        <li>既存のタイマーアプリは"画面を見ている前提"で作られている。没頭している人には赤い画面は届かない</li>
+      </ul>
+    </section>
+
+    <section class="card card--solution">
+      <h2 class="section__title">
+        <span class="section__num">02</span>
+        <span class="section__name">解決策</span>
+        <span class="section__sub">選んだ形</span>
+      </h2>
+      <p class="quote quote--solution">
+        AIが課題を小タスクに分解して"終わり"を見える化。<br>
+        開始前に"合格ライン"を宣言し、完成後の基準吊り上げを封じる。<br>
+        予定時間を超えたら音とブラウザ通知で物理的に割り込む。
+      </p>
+    </section>
+  </div>
+
+  <!-- ============ 03 TRACTION ============ -->
+  <section class="traction">
+    <h2 class="section__title traction__title">
+      <span class="section__num">03</span>
+      <span class="section__name">検証実績</span>
+      <span class="section__sub">試して確かめた</span>
+      <span class="badge badge--must">必須</span>
+    </h2>
+
+    <div class="traction__grid">
+      <div class="metric">
+        <span class="metric__num">1</span>
+        <span class="metric__label">使った人（自分）</span>
+      </div>
+      <div class="metric">
+        <span class="metric__num">1</span>
+        <span class="metric__label">実運用した回数</span>
+      </div>
+      <div class="metric">
+        <span class="metric__num">v5</span>
+        <span class="metric__label">現在のバージョン</span>
+      </div>
+      <div class="metric">
+        <span class="metric__num">17</span>
+        <span class="metric__label">ネムのセリフ状態</span>
+      </div>
+    </div>
+
+    <div class="traction__body">
+      <div class="ba-compare">
+        <div class="ba-side ba-side--before">
+          <span class="ba__label">Before</span>
+          <span class="ba__figure">"満足するまで"で終わりが不定<br>朝5時まで作業</span>
+        </div>
+        <div class="ba-arrow">→</div>
+        <div class="ba-side ba-side--after">
+          <span class="ba__label">After</span>
+          <span class="ba__figure">"時間内に終わらせよう"という意識が働き、<br>形として区切る努力ができた</span>
+        </div>
+      </div>
+      <blockquote class="user-voice">
+        「時間内に終わらせようという意識づけになった。<br>
+        ただ、実装したてで意識できているだけで、飽きたときに続けられるかは未検証」
+        <cite>— 開発者本人（N=1、これから他人での検証が必要 【要検証】）</cite>
+      </blockquote>
+    </div>
+
+  </section>
+
+  <!-- ============ 04 TECH / 05 LEARNED ============ -->
+  <div class="two-col">
+    <section class="card card--tech">
+      <h2 class="section__title">
+        <span class="section__num">04</span>
+        <span class="section__name">技術構成</span>
+        <span class="section__sub">賢さは借りて、力仕事は自分で</span>
+      </h2>
+      <ul class="tech__stack">
+        <li><code>OpenAI gpt-4o-mini</code>課題を小タスクへ分解する"判断"を借用</li>
+        <li><code>Next.js 16 / Vercel</code>UIとホスティング</li>
+        <li><code>Web Audio + Notification API</code>画面外にも届く"割り込み"を自前実装</li>
+        <li><code>localStorage</code>進捗・履歴・合格ラインの永続化</li>
+        <li><code>Pure SVG</code>マスコット「ネム」6表情を外部依存なしで描画</li>
+      </ul>
+    </section>
+
+    <section class="card card--learned">
+      <h2 class="section__title">
+        <span class="section__num">05</span>
+        <span class="section__name">失敗と学び</span>
+        <span class="section__sub">失敗は学びのたね</span>
+      </h2>
+      <div class="learned__block learned__block--failed">
+        <span class="learned__label learned__label--failed">✗ 通用しなかった</span>
+        <p>「予定時間を超えたらタイマーが赤くなる」だけの警告では、集中して画面を見ていないユーザーには届かなかった。徹夜する人ほど画面を見ていない。</p>
+      </div>
+      <div class="learned__block learned__block--won">
+        <span class="learned__label learned__label--won">✓ 分かったこと</span>
+        <p>「気づかせる」を「見せる」と「割り込む」に分けたら、集中してる人にも届くようになる。音とブラウザ通知で物理的に割り込みを追加した。</p>
+      </div>
+    </section>
+  </div>
+
+  <!-- ============ 06 NEXT ============ -->
+  <section class="next">
+    <h2 class="section__title next__title">
+      <span class="section__num">06</span>
+      <span class="section__name">次の一手</span>
+      <span class="section__sub">もっとよくしていく</span>
+    </h2>
+    <p class="next__body">
+      未解決：作った直後は自分でも意識できるが、"飽きた自分"に続けさせる仕組みがまだない。
+      → 友人5人に数日間使ってもらい、マスコット「ネム」の存在感が飽きにくさに効くかを検証する。
+      → 認知バイアス（自分の完璧主義）を仕組みで殴る設計に詳しい方と話したい。
+    </p>
+  </section>
+
+  <!-- ============ FOOTER ============ -->
+  <footer class="poster__footer">
+    <div class="team">
+      <div class="team__photo" style="background:linear-gradient(135deg,#1a1d2e 0%,#2c3555 100%);display:flex;align-items:center;justify-content:center;overflow:hidden;">
+        <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" style="width:82%;height:82%;">
+          <path d="M 55,14 A 38,38 0 1,0 55,90 A 50,50 0 0,1 55,14 Z" fill="#B88A3E"/>
+          <path d="M 55,12 A 38,38 0 1,0 55,88 A 50,50 0 0,1 55,12 Z" fill="#FFECB0" stroke="#B88A3E" stroke-width="1" stroke-linejoin="round" stroke-linecap="round"/>
+          <ellipse cx="30" cy="26" rx="4.5" ry="2" fill="#FFF8DC" opacity="0.9" transform="rotate(-25 30 26)"/>
+          <ellipse cx="17" cy="53" rx="2.6" ry="1.8" fill="#FFB5C5" opacity="0.6"/>
+          <ellipse cx="36" cy="53" rx="2.6" ry="1.8" fill="#FFB5C5" opacity="0.6"/>
+          <ellipse cx="23" cy="46" rx="2.3" ry="2.9" fill="#3B2A1A"/>
+          <ellipse cx="33" cy="46" rx="2.3" ry="2.9" fill="#3B2A1A"/>
+          <circle cx="24" cy="44.8" r="0.9" fill="#FFFFFF"/>
+          <circle cx="34" cy="44.8" r="0.9" fill="#FFFFFF"/>
+          <path d="M 25,55 Q 28,57.6 31,55" stroke="#3B2A1A" stroke-width="1.4" fill="none" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <div class="team__info">
+        <div class="team__name-row">
+          <div class="team__name">水川 流輝</div>
+        </div>
+        <div class="team__affiliation">千葉工業大学 先進工学部 知能メディア工学科 3年</div>
+        <div class="team__contact">s24c3118ch@chibatech.ac.jp</div>
+        <div class="team__pitch">
+          <span class="pitch__label">話したいこと</span>
+          自分の"完璧主義で徹夜"というバグを、仕組みで殴るプロダクトの設計論
+        </div>
+      </div>
+    </div>
+    <div class="qrs">
+      <div class="qr">
+        <img class="qr__code" src="https://api.qrserver.com/v1/create-qr-code/?size=240x240&margin=4&data=https%3A%2F%2Ftask-breaker-one.vercel.app" alt="Product QR" style="width:100%;height:100%;object-fit:contain;background:#fff;">
+        <span class="qr__label">プロダクトを触る<br>task-breaker-one.vercel.app</span>
+      </div>
+      <div class="qr">
+        <img class="qr__code" src="https://api.qrserver.com/v1/create-qr-code/?size=240x240&margin=4&data=https%3A%2F%2Fgithub.com%2Fs24c3118ch-ops%2Ftask-breaker" alt="GitHub QR" style="width:100%;height:100%;object-fit:contain;background:#fff;">
+        <span class="qr__label">GitHub<br>s24c3118ch-ops/task-breaker</span>
+      </div>
+    </div>
+  </footer>
+
+</div>
+
+</body>
+</html>

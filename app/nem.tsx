@@ -1,8 +1,19 @@
 "use client";
 
+import { useState } from "react";
+
 // ─── Nem: マスコットキャラクター ────────────────────────────────────────────
 // 三日月の妖精。徹夜するユーザーを心配し、寝てくれたら喜ぶ。
 // 6表情 × 17状態のセリフライブラリ。深夜モードは"上書き"ではなく"差し替え"制。
+//
+// 画像差し替え可能：`public/nem/{expression}.png` を置くと自動で優先表示。
+// PNG が無い場合はビルトインSVGにフォールバック。
+//   public/nem/default.png
+//   public/nem/happy.png
+//   public/nem/worried.png
+//   public/nem/sleepy.png
+//   public/nem/celebrating.png
+//   public/nem/panicking.png
 
 export type NemExpression =
   | "default"
@@ -100,12 +111,33 @@ export function Nem({
   className?: string;
   floating?: boolean;
 }) {
+  // PNG が存在すれば PNG、失敗したら SVG フォールバック
+  const [pngFailed, setPngFailed] = useState(false);
+
+  const commonClass = `inline-block flex-shrink-0 ${floating ? "nem-float" : ""} ${className}`;
+  const commonStyle = { width: size, height: size };
+
+  if (!pngFailed) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={`/nem/${expression}.png`}
+        alt={`ネム (${expression})`}
+        onError={() => setPngFailed(true)}
+        className={commonClass}
+        style={{ ...commonStyle, objectFit: "contain" }}
+        draggable={false}
+      />
+    );
+  }
+
+  // Fallback: built-in SVG
   return (
     <div
       role="img"
       aria-label={`ネム (${expression})`}
-      className={`inline-block flex-shrink-0 ${floating ? "nem-float" : ""} ${className}`}
-      style={{ width: size, height: size }}
+      className={commonClass}
+      style={commonStyle}
       dangerouslySetInnerHTML={{ __html: NEM_SVG[expression] }}
     />
   );
