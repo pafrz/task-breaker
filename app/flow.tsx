@@ -12,6 +12,7 @@ import {
   judgeLoad,
   playComplete,
   playTap,
+  passTarget,
   sendNotification,
   SAMPLE_KEYS,
   todayTasks,
@@ -362,7 +363,7 @@ export function StepPassLine({
 }) {
   const totalTasks = set.tasks.length;
   const [count, setCount] = useState(
-    set.passCount ?? Math.max(1, Math.ceil(totalTasks * 0.6))
+    Math.min(set.passCount ?? Math.max(1, Math.ceil(totalTasks * 0.6)), totalTasks)
   );
   const [stamping, setStamping] = useState(false);
 
@@ -576,7 +577,7 @@ export function StepSelect({
 }) {
   const list = todayTasks(set);
   const doneCount = list.filter((t) => t.done).length;
-  const passCount = set.passCount ?? list.length;
+  const passCount = passTarget(set);
   const reached = doneCount >= passCount;
   const remainMin = list.filter((t) => !t.done).reduce((s, t) => s + t.minutes, 0);
   const selected = list.find((t) => t.id === selectedId && !t.done) ?? null;
@@ -790,11 +791,20 @@ export function StepFocus({
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const elapsedRef = useRef(0);
   const notified = useRef({ end: false, m15: false, m30: false });
+  // running は state なので、await をまたぐ連打では古い値が見える。
+  // 同期的に読める ref で二重起動を止める。
+  const runningRef = useRef(false);
 
   // タスクが変わったときのリセットは、呼び出し側が key={task.id} で
   // この要素を作り直すことで行う（effect内のsetStateを避ける）。
 
   const startInterval = useCallback(() => {
+    // 必ず既存を止めてから張る。連打や再入で interval が増殖すると
+    // タイマーが倍速になり、解放されないものが残る。
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
     intervalRef.current = setInterval(() => {
       elapsedRef.current += 1;
       const elapsed = elapsedRef.current;
@@ -822,35 +832,49 @@ export function StepFocus({
     }, 1000);
   }, [totalSec, task.label]);
 
+  // 集中画面を離れたら interval を確実に解放する
   useEffect(() => {
+    const iv = intervalRef;
+    const rn = runningRef;
     return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
+      rn.current = false;
+      if (iv.current) {
+        clearInterval(iv.current);
+        iv.current = null;
+      }
     };
   }, []);
 
   async function toggle() {
     playTap();
-    if (running) {
-      if (intervalRef.current) clearInterval(intervalRef.current);
+    if (runningRef.current) {
+      runningRef.current = false;
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
       setRunning(false);
-    } else {
-      await ensureNotifyPermission();
-      startInterval();
-      setRunning(true);
+      return;
     }
+    runningRef.current = true;
+    setRunning(true);
+    await ensureNotifyPermission();
+    // 待っている間に停止された場合は張らない
+    if (!runningRef.current) return;
+    startInterval();
   }
 
   function extend(min: number) {
     playTap();
-    if (intervalRef.current) clearInterval(intervalRef.current);
     elapsedRef.current = Math.max(0, totalSec - min * 60);
     notified.current = { end: false, m15: false, m30: false };
     setIsOver(false);
     setOvertime(0);
     setSeconds(min * 60);
     setExtendCount((c) => c + 1);
-    startInterval();
+    runningRef.current = true;
     setRunning(true);
+    startInterval(); // 内部で既存を止めるので二重にならない
   }
 
   const overMin = Math.floor(overtime / 60);
@@ -1108,7 +1132,7 @@ export function StepReview({
   night: NightFlags;
 }) {
   const list = todayTasks(set);
-  const passCount = set.passCount ?? list.length;
+  const passCount = passTarget(set);
   const doneCount = list.filter((t) => t.done).length;
   const doneMin = list.filter((t) => t.done).reduce((s, t) => s + t.minutes, 0);
   const achieved = doneCount >= passCount;

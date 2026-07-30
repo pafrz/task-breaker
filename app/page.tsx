@@ -5,7 +5,6 @@
 // 状態はここに集約し、各ステップ画面(flow.tsx)は表示と入力だけを担う。
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
 import {
   API_KEY_STORAGE,
   deriveStep,
@@ -14,6 +13,7 @@ import {
   isDeepNight,
   isPastMidnight,
   loadStorage,
+  passTarget,
   pickSample,
   playFanfare,
   playTap,
@@ -143,8 +143,9 @@ export default function Home() {
   // ─── 派生値 ────────────────────────────────────────────────────────────
   const current = taskSets.find((s) => s.id === currentId) ?? null;
   const focusTask = current?.tasks.find((t) => t.id === focusTaskId) ?? null;
+  const hasTasks = !!current && current.tasks.length > 0;
   const todayList = current ? todayTasks(current) : [];
-  const passCount = current?.passCount ?? todayList.length;
+  const passCount = current ? passTarget(current) : 0;
   const doneCount = todayList.filter((t) => t.done).length;
   const goalReached = todayList.length > 0 && doneCount >= passCount;
 
@@ -190,8 +191,10 @@ export default function Home() {
       topic,
       tasks: tasks.map((t, i) => ({
         id: i + 1,
-        label: t.label,
-        minutes: t.minutes,
+        label: String(t.label ?? "").trim() || `タスク${i + 1}`,
+        // AI応答が壊れていても 0分・NaN を持ち込ませない（0分だと
+        // タイマーが超過状態に入れなくなる）
+        minutes: Math.max(1, Math.min(999, Math.round(Number(t.minutes)) || 15)),
         done: false,
         priority: "medium" as Priority,
         memo: "",
@@ -359,7 +362,8 @@ export default function Home() {
     if (n === 1) return true;
     if (!current) return false;
     if (n === 2 || n === 3) return current.tasks.length > 0;
-    if (n === 4 || n === 6) return current.passCount !== undefined;
+    if (n === 4 || n === 6)
+      return current.passCount !== undefined && current.tasks.length > 0;
     if (n === 5) return !!focusTask;
     return false;
   }
@@ -464,11 +468,11 @@ export default function Home() {
               />
             )}
 
-            {step === 3 && current && (
+            {step === 3 && current && hasTasks && (
               <StepPassLine set={current} onDecide={decidePassLine} night={night} />
             )}
 
-            {step === 4 && current && (
+            {step === 4 && current && hasTasks && (
               <StepSelect
                 set={current}
                 selectedId={focusTaskId}
@@ -491,7 +495,7 @@ export default function Home() {
               />
             )}
 
-            {step === 6 && current && (
+            {step === 6 && current && hasTasks && (
               <StepReview
                 set={current}
                 onSave={saveReview}
@@ -501,10 +505,11 @@ export default function Home() {
               />
             )}
 
-            {/* データ不整合時の受け皿 */}
+            {/* データ不整合時の受け皿（行き止まりを作らない） */}
             {((step >= 2 && step <= 4 && !current) ||
               (step === 5 && !focusTask) ||
-              (step === 6 && !current)) && (
+              (step === 6 && !current) ||
+              (step >= 3 && current && !hasTasks)) && (
               <div className="paper hand-round px-5 py-8 text-center">
                 <div className="mb-4 flex justify-center">
                   <Nem expression="default" size={78} />
@@ -512,10 +517,21 @@ export default function Home() {
                 <p className="mb-5 text-sm font-medium">
                   {step === 5
                     ? "集中するタスクが選ばれてないよ。"
+                    : current && !hasTasks
+                    ? "タスクが1つもないよ。\n書き足してから先へ進もう。"
                     : "まだ課題がないよ。最初の1つを書こう。"}
                 </p>
-                <InkButton onClick={() => go(step === 5 ? 4 : 1)} className="w-full">
-                  {step === 5 ? "タスクを選ぶ" : "課題を書く"}
+                <InkButton
+                  onClick={() =>
+                    go(step === 5 ? 4 : current && !hasTasks ? 2 : 1)
+                  }
+                  className="w-full"
+                >
+                  {step === 5
+                    ? "タスクを選ぶ"
+                    : current && !hasTasks
+                    ? "タスクを書き足す"
+                    : "課題を書く"}
                 </InkButton>
               </div>
             )}
@@ -556,8 +572,10 @@ export default function Home() {
         </Portal>
       )}
 
-      {/* ── シート ── */}
-      <AnimatePresence>
+      {/* ── シート ──
+          AnimatePresence を使わない。exit が完了しないと閉じたシートが
+          クリックを食い続けるため（画面全体が操作不能になる）。 */}
+      <>
         {sheet === "log" && (
           <LogSheet
             taskSets={taskSets}
@@ -577,7 +595,7 @@ export default function Home() {
             onClose={() => setSheet(null)}
           />
         )}
-      </AnimatePresence>
+      </>
     </main>
   );
 }

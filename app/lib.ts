@@ -46,10 +46,20 @@ export function deriveStep(set: TaskSet | null): Step {
   return 4;
 }
 
+/**
+ * 今日の合格ライン（タスク数）。
+ * 合格ライン決定後にタスクを削除すると passCount がタスク数を超え、
+ * 「2/3 で永久に達成できない」状態になるため、必ずここを通して読む。
+ */
+export function passTarget(set: TaskSet): number {
+  const raw = set.passCount ?? set.tasks.length;
+  if (set.tasks.length === 0) return 0;
+  return Math.max(1, Math.min(raw, set.tasks.length));
+}
+
 /** 今日の対象タスク（合格ライン内） */
 export function todayTasks(set: TaskSet): Task[] {
-  const n = set.passCount ?? set.tasks.length;
-  return set.tasks.slice(0, n);
+  return set.tasks.slice(0, passTarget(set));
 }
 
 /** 合格ラインの重さを判定。深夜なら基準を厳しくする。 */

@@ -342,18 +342,27 @@ export function StepRail({
 // ─── 紙吹雪（紙片） ─────────────────────────────────────────────────────────
 // 丸い紙・四角い紙・星の混合。落ち方は控えめ。
 
+const SCRAP_COLORS = ["#E9B94C", "#6E8F72", "#C4694E", "#F6DFA0", "#FBF7EC", "#8FA9CE"];
+
+/** index から決まる擬似乱数。0〜1。 */
+function scatter(i: number, seed: number): number {
+  const x = Math.sin(i * 12.9898 + seed * 78.233) * 43758.5453;
+  return x - Math.floor(x);
+}
+
 export function PaperScraps({ count = 34 }: { count?: number }) {
-  const colors = ["#E9B94C", "#6E8F72", "#C4694E", "#F6DFA0", "#FBF7EC", "#8FA9CE"];
+  // Math.random() を描画中に呼ぶと、祝福中の再レンダリングで紙片が
+  // 作り直されて飛び方が飛ぶ。index から決まる値にして安定させる。
   const pieces = Array.from({ length: count }, (_, i) => ({
     id: i,
-    left: Math.random() * 100,
-    delay: Math.random() * 0.7,
-    dur: 2.2 + Math.random() * 1.6,
-    color: colors[i % colors.length],
-    w: 6 + Math.random() * 7,
-    h: 8 + Math.random() * 8,
-    spin: (Math.random() > 0.5 ? 1 : -1) * (360 + Math.random() * 420),
-    round: Math.random() > 0.6,
+    left: scatter(i, 1) * 100,
+    delay: scatter(i, 2) * 0.7,
+    dur: 2.2 + scatter(i, 3) * 1.6,
+    color: SCRAP_COLORS[i % SCRAP_COLORS.length],
+    w: 6 + scatter(i, 4) * 7,
+    h: 8 + scatter(i, 5) * 8,
+    spin: (scatter(i, 6) > 0.5 ? 1 : -1) * (360 + scatter(i, 7) * 420),
+    round: scatter(i, 8) > 0.6,
   }));
   return (
     <div className="pointer-events-none fixed inset-0 z-[70] overflow-hidden">

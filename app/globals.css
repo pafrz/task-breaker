@@ -282,10 +282,10 @@ html[data-night="true"] .field:focus {
   to   { opacity: 1; transform: none; }
 }
 .step-enter-fwd {
-  animation: stepEnterFwd 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: stepEnterFwd 0.3s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 .step-enter-back {
-  animation: stepEnterBack 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: stepEnterBack 0.3s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
 @keyframes softAppear {
@@ -293,7 +293,7 @@ html[data-night="true"] .field:focus {
   to   { opacity: 1; transform: translateY(0); }
 }
 .soft-appear {
-  animation: softAppear 0.35s ease-out both;
+  animation: softAppear 0.35s ease-out forwards;
 }
 
 @keyframes fadeIn {
@@ -301,7 +301,7 @@ html[data-night="true"] .field:focus {
   to   { opacity: 1; }
 }
 .fade-in {
-  animation: fadeIn 0.25s ease-out both;
+  animation: fadeIn 0.25s ease-out forwards;
 }
 
 /* ─── スタンプ（合格ライン決定・達成） ─────────────────────── */
@@ -372,7 +372,7 @@ html[data-night="true"] .field:focus {
   to   { opacity: 1; transform: translateY(0) scale(1); }
 }
 .bubble-in {
-  animation: bubbleFadeIn 0.38s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: bubbleFadeIn 0.38s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
 /* ─── 集中モードへの転換 ───────────────────────────────────── */
@@ -382,7 +382,7 @@ html[data-night="true"] .field:focus {
   100% { opacity: 1; transform: scale(1); filter: blur(0); }
 }
 .focus-enter {
-  animation: focusEnter 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: focusEnter 0.42s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
 @keyframes dimVeil {
@@ -486,7 +486,7 @@ html[data-night="true"] .field:focus {
   to   { opacity: 1; transform: translateY(0); }
 }
 .slide-up-sheet {
-  animation: slideUpSheet 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: slideUpSheet 0.32s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
 /* ─── その他 ───────────────────────────────────────────────── */

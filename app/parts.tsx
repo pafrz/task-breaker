@@ -4,7 +4,6 @@
 // フロー(6ステップ)の邪魔をしないよう、どちらも全画面シートに退避させている。
 
 import { useState } from "react";
-import { motion } from "framer-motion";
 import { fmtMinutes, playTap, type TaskSet } from "./lib";
 import { HandCheck, HandUnderline, InkButton, PaperCard, Stamp } from "./ui";
 import { Nem } from "./nem";
@@ -22,20 +21,17 @@ function Sheet({
   onClose: () => void;
   children: React.ReactNode;
 }) {
+  // AnimatePresence の exit を使わない。exit が完了しないと
+  // opacity:0 / pointer-events:auto の全画面要素が残り、
+  // 画面全体がクリック不能になるため（発表中に致命的）。
   return (
-    <motion.div
-      className="fixed inset-0 z-50 flex flex-col"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      transition={{ duration: 0.2 }}
-    >
+    <div className="fade-in fixed inset-0 z-50 flex flex-col">
       <div
         className="absolute inset-0"
         style={{ background: "rgba(20,26,46,0.42)" }}
         onClick={onClose}
       />
-      <motion.div
+      <div
         className="slide-up-sheet relative mt-auto flex max-h-[92vh] w-full flex-col overflow-hidden sm:mx-auto sm:mb-auto sm:mt-16 sm:max-w-lg"
         style={{
           background: "var(--page-bg)",
@@ -71,8 +67,8 @@ function Sheet({
           </button>
         </div>
         <div className="flex-1 overflow-y-auto px-5 pb-10">{children}</div>
-      </motion.div>
-    </motion.div>
+      </div>
+    </div>
   );
 }
 
