@@ -75,8 +75,13 @@ export function StepInput({
         isDeepNight={night.isDeepNight}
         isPastMidnight={night.isPastMidnight}
         size={88}
-        className="mb-6"
+        className="mb-3"
       />
+
+      {/* 初見の人向けの補助文。入力欄やネムより目立たせない。 */}
+      <p className="mb-5 text-center text-[11.5px] leading-relaxed text-ink-faint">
+        AIが課題を分け、今日の終わりを先に決めます。
+      </p>
 
       <PaperCard className="p-5">
         <label className="mb-2 block text-[13px] font-bold tracking-wide text-ink-soft">
@@ -352,6 +357,24 @@ function EditableTaskRow({
 // STEP 3 — 今日の合格ラインを決める
 // ═══════════════════════════════════════════════════════════════════════════
 
+/**
+ * 現在時刻 ＋ 選択タスクの合計時間 だけの単純な見込み。
+ * 休憩・中断は含まないので、あくまで目安として表示する。
+ */
+function estimateFinish(nowMs: number, minutes: number) {
+  const now = new Date(nowMs);
+  const end = new Date(nowMs + minutes * 60_000);
+  const h = end.getHours();
+  // 時は0埋めしない（「翌朝5:55」のように読ませたいため）
+  const time = `${h}:${String(end.getMinutes()).padStart(2, "0")}`;
+  const nextDay =
+    end.getFullYear() !== now.getFullYear() ||
+    end.getMonth() !== now.getMonth() ||
+    end.getDate() !== now.getDate();
+  // 0〜4時は「朝」と呼ばない（未明なので「翌1:20」と出す）
+  return { time, nextDay, morning: h >= 5 && h < 12 };
+}
+
 export function StepPassLine({
   set,
   onDecide,
@@ -367,7 +390,16 @@ export function StepPassLine({
   );
   const [stamping, setStamping] = useState(false);
 
+  // 見込み時刻を出すための現在時刻。画面を開いたまま時間が経っても
+  // ずれないよう、30秒ごとに更新する。
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  useEffect(() => {
+    const iv = setInterval(() => setNowMs(Date.now()), 30_000);
+    return () => clearInterval(iv);
+  }, []);
+
   const minutes = set.tasks.slice(0, count).reduce((s, t) => s + t.minutes, 0);
+  const finish = estimateFinish(nowMs, minutes);
   const load = judgeLoad(minutes, night.isDeepNight);
   const nemState: NemState = load.level === "heavy" ? "passline-heavy" : "passline-ask";
 
@@ -450,6 +482,30 @@ export function StepPassLine({
               {fmtMinutes(minutes)}
             </motion.span>
           </div>
+
+          {/* 終了見込み（現在時刻＋合計時間の単純な目安） */}
+          <div className="mb-3">
+            {finish.nextDay ? (
+              <p className="text-[12.5px] font-bold leading-relaxed text-clay">
+                終了見込み：翌{finish.morning ? "朝" : ""}
+                <span className="font-mono">{finish.time}</span>
+                <br />
+                <span className="font-normal">明日の集中に影響しそう</span>
+              </p>
+            ) : (
+              <p className="text-[12.5px] leading-relaxed">
+                予定時間ベースなら、
+                <span className="marker font-mono font-bold">
+                  {finish.time}ごろ
+                </span>
+                終了
+              </p>
+            )}
+            <p className="mt-0.5 text-[10.5px] text-ink-faint">
+              休憩を含まない目安です
+            </p>
+          </div>
+
           <PaperGauge value={count} max={totalTasks} tone={tone} />
           <p
             className="mt-3 inline-flex items-center gap-1.5 text-[13px] font-bold"
@@ -1138,6 +1194,9 @@ export function StepReview({
   const achieved = doneCount >= passCount;
   const saved = set.review;
 
+  // 明日への引き継ぎ。保存済みタスクを見るだけで、予定は作らない。
+  const remaining = set.tasks.filter((t) => !t.done);
+
   const [memo, setMemo] = useState(saved?.memo ?? "");
 
   const nemState: NemState = saved
@@ -1230,6 +1289,29 @@ export function StepReview({
           </p>
         )}
       </PaperCard>
+
+      {/* 明日への引き継ぎ（保存済みタスクを見るだけ） */}
+      <div
+        className="hand-round-sm mt-4 px-4 py-3"
+        style={{ border: "1.5px dashed var(--pencil-strong)" }}
+      >
+        <p className="text-[11px] font-bold tracking-wider text-ink-soft">
+          明日への引き継ぎ
+        </p>
+        {remaining.length > 0 ? (
+          <p className="mt-1.5 text-[13px] leading-relaxed">
+            残り{remaining.length}タスクは、そのまま明日に残しておいたよ。
+            <br />
+            明日は「
+            <span className="marker font-bold">{remaining[0].label}</span>
+            」から始めよう。
+          </p>
+        ) : (
+          <p className="mt-1.5 text-[13px] leading-relaxed">
+            すべて完了。明日は新しい課題から始められるよ。
+          </p>
+        )}
+      </div>
 
       {/* メモ */}
       <div className="mt-4">
