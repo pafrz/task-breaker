@@ -1,6 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useCallback } from "react";
+import { motion } from "framer-motion";
+import { playPop } from "./lib";
 
 // ─── Nem: マスコットキャラクター ────────────────────────────────────────────
 // 三日月の妖精。徹夜するユーザーを心配し、寝てくれたら喜ぶ。
@@ -41,7 +43,19 @@ export type NemState =
   | "demo-loaded"
   | "focus-empty"
   | "deep-night"
-  | "past-midnight";
+  | "past-midnight"
+  // ─── 6ステップ体験フロー用 ───
+  | "step-input"
+  | "passline-ask"
+  | "passline-heavy"
+  | "select-ask"
+  | "task-chosen"
+  | "focus-watching"
+  | "focus-standby"
+  | "overtime-reflect"
+  | "goal-reached"
+  | "review-ask"
+  | "day-closed";
 
 // ─── SVG data ──────────────────────────────────────────────────────────────
 
@@ -78,13 +92,38 @@ export const DIALOGUE: Record<NemState, DialogueLine> = {
   "focus-empty":    { expression: "default",     line: "まだ集中してないよ。「今日」からタスクを選んでね。" },
   "deep-night":     { expression: "sleepy",      line: "もうこんな時間だよ…続きは明日のネムと一緒に。" },
   "past-midnight":  { expression: "sleepy",      line: "日付、変わったよ…。 明日の自分、疲れちゃうよ？" },
+
+  // ─── 6ステップ体験フロー ───
+  "step-input":     { expression: "default",     line: "おつかれさま。\n今日は、何に取りかかる？" },
+  "passline-ask":   { expression: "default",     line: "今日はどこまでやったら合格にする？\n全部じゃなくていいよ。" },
+  "passline-heavy": { expression: "worried",     line: "ちょっと多いかも。\n減らしても、ネムは怒らないよ。" },
+  "select-ask":     { expression: "default",     line: "どれから始めようか。\nひとつ選んで。" },
+  "task-chosen":    { expression: "happy",       line: "うん、それにしよう。\nいけるよ、いってみよう。" },
+  "focus-standby":  { expression: "default",     line: "深呼吸ひとつ。\n準備できたら押して。" },
+  "focus-watching": { expression: "sleepy",      line: "ここで見てるね。" },
+  "overtime-reflect":{ expression: "worried",    line: "時間、過ぎたよ。\nどうする？ 決めるのはきみだよ。" },
+  "goal-reached":   { expression: "celebrating", line: "今日の合格ライン、\n超えたよ！ ちゃんと見てた。" },
+  "review-ask":     { expression: "happy",       line: "今日はここまで。\n安心して終わっていいよ。" },
+  "day-closed":     { expression: "sleepy",      line: "おやすみ。\nまた明日ね。" },
 };
 
-// 深夜モード時に "祝福系" 以外を差し替える。祝福は改変しない。
-const CELEBRATION_STATES: NemState[] = [
-  "task-complete",
-  "all-done",
-  "review-yes",
+// 深夜に「夜だよ」を差し込む状態。各ステップの固有セリフは潰さず、
+// 待ち時間のある状態だけ夜モードのことばに差し替える。
+const NIGHT_SWAP_STATES: NemState[] = [
+  "empty",
+  "typing",
+  "step-input",
+  "timer-idle",
+  "focus-standby",
+  "select-ask",
+];
+
+// 深夜でも一言そえるだけにする状態（固有セリフを残す）
+const NIGHT_APPEND_STATES: NemState[] = [
+  "after-breakdown",
+  "passline-ask",
+  "task-chosen",
+  "review-ask",
 ];
 
 export function resolveDialogue(
@@ -92,10 +131,19 @@ export function resolveDialogue(
   isDeepNight: boolean,
   isPastMidnight: boolean,
 ): DialogueLine {
-  if (isDeepNight && !CELEBRATION_STATES.includes(state)) {
+  const base = DIALOGUE[state];
+  if (!isDeepNight) return base;
+
+  if (NIGHT_SWAP_STATES.includes(state)) {
     return isPastMidnight ? DIALOGUE["past-midnight"] : DIALOGUE["deep-night"];
   }
-  return DIALOGUE[state];
+  if (NIGHT_APPEND_STATES.includes(state)) {
+    return {
+      expression: isPastMidnight ? "sleepy" : base.expression,
+      line: `${base.line}\n${isPastMidnight ? "…もう日付、変わってるよ。" : "…もう夜だから、少なめでもいいと思う。"}`,
+    };
+  }
+  return base;
 }
 
 // ─── Nem component ─────────────────────────────────────────────────────────
@@ -114,32 +162,88 @@ export function Nem({
   // PNG が存在すれば PNG、失敗したら SVG フォールバック
   const [pngFailed, setPngFailed] = useState(false);
 
-  const commonClass = `inline-block flex-shrink-0 ${floating ? "nem-float" : ""} ${className}`;
-  const commonStyle = { width: size, height: size };
+  const style = { width: size, height: size };
 
-  if (!pngFailed) {
-    return (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img
-        src={`/nem/${expression}.png`}
-        alt={`ネム (${expression})`}
-        onError={() => setPngFailed(true)}
-        className={commonClass}
-        style={{ ...commonStyle, objectFit: "contain" }}
-        draggable={false}
-      />
-    );
-  }
-
-  // Fallback: built-in SVG
+  // 呼吸は外側、まばたき(縦つぶれ)は内側。同一要素に animation を2つ当てると
+  // 片方しか効かないので階層を分ける。
   return (
     <div
-      role="img"
-      aria-label={`ネム (${expression})`}
-      className={commonClass}
-      style={commonStyle}
-      dangerouslySetInnerHTML={{ __html: NEM_SVG[expression] }}
-    />
+      className={`inline-block flex-shrink-0 ${floating ? "nem-breathe" : ""} ${className}`}
+      style={style}
+    >
+      <div className={floating ? "nem-blink" : ""} style={style}>
+        {!pngFailed ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={`/nem/${expression}.png`}
+            alt={`ネム (${expression})`}
+            onError={() => setPngFailed(true)}
+            style={{ ...style, objectFit: "contain" }}
+            draggable={false}
+          />
+        ) : (
+          <div
+            role="img"
+            aria-label={`ネム (${expression})`}
+            style={style}
+            dangerouslySetInnerHTML={{ __html: NEM_SVG[expression] }}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Hidden tap lines ───────────────────────────────────────────────────────
+// ネムをタップした時にランダムで出る隠しセリフ
+
+export const HIDDEN_LINES = [
+  "わっ、びっくりした。",
+  "なでてくれるの？えへへ。",
+  "ネム、ここにいるよ。",
+  "ちょっとくすぐったいよ。",
+  "きみが頑張ってるの、見てる。",
+  "無理してない？大丈夫？",
+  "ふぁ…ちょっと眠くなってきた。",
+  "月、きれいだね。",
+  "またあとでね。",
+  "きみのペースでいいんだよ。",
+  "今日もおつかれさま。",
+  "そばにいるからね。",
+];
+
+// ─── Ambient sparkles ────────────────────────────────────────────────────────
+// ネムの周囲に舞う小さなキラキラ。celebrating時は数を増やす。
+
+function Sparkles({ boost = false }: { boost?: boolean }) {
+  const positions = boost
+    ? [
+        { top: "2%", left: "8%", size: 10, delay: 0 },
+        { top: "10%", left: "82%", size: 12, delay: 0.4 },
+        { top: "48%", left: "-4%", size: 9, delay: 0.8 },
+        { top: "40%", left: "94%", size: 11, delay: 1.2 },
+        { top: "82%", left: "12%", size: 8, delay: 0.6 },
+        { top: "76%", left: "84%", size: 10, delay: 1.6 },
+      ]
+    : [
+        { top: "6%", left: "80%", size: 9, delay: 0 },
+        { top: "58%", left: "-2%", size: 8, delay: 1.1 },
+        { top: "84%", left: "78%", size: 7, delay: 0.7 },
+      ];
+  return (
+    <>
+      {positions.map((p, i) => (
+        <span
+          key={i}
+          className="sparkle"
+          style={{ top: p.top, left: p.left, animationDelay: `${p.delay}s` }}
+        >
+          <svg width={p.size} height={p.size} viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 0 L14 10 L24 12 L14 14 L12 24 L10 14 L0 12 L10 10 Z" />
+          </svg>
+        </span>
+      ))}
+    </>
   );
 }
 
@@ -157,26 +261,23 @@ export function SpeechBubble({
   tone?: "light" | "night";
   className?: string;
 }) {
-  const bg = tone === "night" ? "bg-slate-800 text-slate-100 ring-slate-700" : "bg-white text-gray-700 ring-gray-200";
   return (
     <div
-      className={`relative rounded-2xl px-3.5 py-2 shadow-sm ring-1 text-sm leading-relaxed ${bg} ${className}`}
-      style={{ animation: "bubbleFadeIn 0.4s ease-out both" }}
+      key={text}
+      data-tone={tone}
+      className={`paper hand-round bubble-in relative px-4 py-2.5 text-[13.5px] leading-relaxed ${className}`}
     >
       <span className="whitespace-pre-line">{text}</span>
       {tail !== "none" && (
         <div
-          className={`absolute h-3 w-3 rotate-45 ring-1 ${bg} ${
-            tail === "left" ? "-left-1.5 top-4" :
-            tail === "right" ? "-right-1.5 top-4" :
-            "left-6 -bottom-1.5"
+          className={`paper absolute h-3.5 w-3.5 rotate-45 ${
+            tail === "left"
+              ? "-left-[7px] top-5"
+              : tail === "right"
+              ? "-right-[7px] top-5"
+              : "-bottom-[7px] left-8"
           }`}
-          style={{
-            boxShadow:
-              tail === "left" ? "-1px 1px 0 -0.5px rgba(0,0,0,0.05)" :
-              tail === "right" ? "1px -1px 0 -0.5px rgba(0,0,0,0.05)" :
-              "1px 1px 0 -0.5px rgba(0,0,0,0.05)",
-          }}
+          style={{ borderRadius: 2, boxShadow: "none" }}
         />
       )}
     </div>
@@ -193,6 +294,8 @@ export function NemWithBubble({
   align = "left",
   tone = "light",
   className = "",
+  interactive = true,
+  sparkle,
 }: {
   expression: NemExpression;
   text: string;
@@ -200,16 +303,130 @@ export function NemWithBubble({
   align?: "left" | "right";
   tone?: "light" | "night";
   className?: string;
+  interactive?: boolean;
+  sparkle?: boolean;
 }) {
+  // tap で一時的に隠しセリフ＆表情を上書き
+  const [override, setOverride] = useState<{ expr: NemExpression; line: string } | null>(null);
+  const [hearts, setHearts] = useState<{ id: number; x: number }[]>([]);
+  const heartId = useRef(0);
+  const revertTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const showExpr = override?.expr ?? expression;
+  const showText = override?.line ?? text;
+  const doSparkle = sparkle ?? (showExpr === "celebrating");
+
+  const handleTap = useCallback(() => {
+    if (!interactive) return;
+    playPop();
+    const line = HIDDEN_LINES[Math.floor(Math.random() * HIDDEN_LINES.length)];
+    setOverride({ expr: "happy", line });
+    // ハートを飛ばす
+    heartId.current += 1;
+    const id = heartId.current;
+    const x = 30 + Math.random() * 40; // 30-70%
+    setHearts((prev) => [...prev, { id, x }]);
+    setTimeout(() => setHearts((prev) => prev.filter((h) => h.id !== id)), 1100);
+    // 2.4秒後に元へ
+    if (revertTimer.current) clearTimeout(revertTimer.current);
+    revertTimer.current = setTimeout(() => setOverride(null), 2400);
+  }, [interactive]);
+
   return (
     <div className={`flex items-start gap-2 ${align === "right" ? "flex-row-reverse" : ""} ${className}`}>
-      <Nem expression={expression} size={size} />
+      <div className="relative flex-shrink-0" style={{ width: size, height: size }}>
+        {doSparkle && <Sparkles boost={showExpr === "celebrating"} />}
+        {hearts.map((h) => (
+          <span key={h.id} className="heart-pop" style={{ left: `${h.x}%`, top: "20%", fontSize: size * 0.22 }}>
+            💜
+          </span>
+        ))}
+        <motion.div
+          whileTap={interactive ? { scale: 0.88, rotate: -4 } : undefined}
+          onClick={handleTap}
+          className={interactive ? "cursor-pointer" : ""}
+          style={{ width: size, height: size }}
+        >
+          <Nem expression={showExpr} size={size} />
+        </motion.div>
+      </div>
       <div className="mt-3 min-w-0 flex-1">
         <SpeechBubble
-          text={text}
+          text={showText}
           tail={align === "right" ? "right" : "left"}
           tone={tone}
         />
+      </div>
+    </div>
+  );
+}
+
+// ─── NemStage ──────────────────────────────────────────────────────────────
+// 各ステップで「ネムが反応している」ことを主役として見せるための舞台。
+// 吹き出しはネムの右上（横並び）。表情が変わると差分がひと目で分かる。
+
+export function NemStage({
+  state,
+  isDeepNight,
+  isPastMidnight,
+  size = 84,
+  quiet = false,
+  className = "",
+}: {
+  state: NemState;
+  isDeepNight: boolean;
+  isPastMidnight: boolean;
+  size?: number;
+  /** 集中中など、吹き出しを最小化したいとき */
+  quiet?: boolean;
+  className?: string;
+}) {
+  const line = resolveDialogue(state, isDeepNight, isPastMidnight);
+  const [override, setOverride] = useState<{ expr: NemExpression; line: string } | null>(null);
+  const [hearts, setHearts] = useState<{ id: number; x: number }[]>([]);
+  const heartId = useRef(0);
+  const revertTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const expr = override?.expr ?? line.expression;
+  const text = override?.line ?? line.line;
+
+  const handleTap = useCallback(() => {
+    playPop();
+    const l = HIDDEN_LINES[Math.floor(Math.random() * HIDDEN_LINES.length)];
+    setOverride({ expr: "happy", line: l });
+    heartId.current += 1;
+    const id = heartId.current;
+    setHearts((prev) => [...prev, { id, x: 24 + Math.random() * 44 }]);
+    setTimeout(() => setHearts((prev) => prev.filter((h) => h.id !== id)), 1100);
+    if (revertTimer.current) clearTimeout(revertTimer.current);
+    revertTimer.current = setTimeout(() => setOverride(null), 2600);
+  }, []);
+
+  return (
+    <div className={`flex items-start gap-3 ${className}`}>
+      <div className="relative flex-shrink-0" style={{ width: size, height: size }}>
+        {expr === "celebrating" && <Sparkles boost />}
+        {hearts.map((h) => (
+          <span
+            key={h.id}
+            className="heart-pop z-10"
+            style={{ left: `${h.x}%`, top: "18%", fontSize: size * 0.2 }}
+          >
+            💛
+          </span>
+        ))}
+        <motion.div
+          whileTap={{ scale: 0.9, rotate: -5 }}
+          onClick={handleTap}
+          className="cursor-pointer"
+          style={{ width: size, height: size }}
+          title="なでる"
+        >
+          <Nem expression={expr} size={size} />
+        </motion.div>
+      </div>
+      <div className={`min-w-0 flex-1 ${quiet ? "pt-1" : "pt-3"}`}>
+        <SpeechBubble text={text} tail="left" tone={isDeepNight ? "night" : "light"} />
       </div>
     </div>
   );

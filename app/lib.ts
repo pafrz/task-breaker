@@ -24,10 +24,71 @@ export type TaskSet = {
   deadline: string; // ISO date or ""
   createdAt: number;
   passLine?: string;
+  /** 今日の合格ライン = 上から何タスク終わらせれば合格か */
+  passCount?: number;
   review?: Review;
 };
 
 export type Tab = "home" | "focus" | "log" | "settings";
+
+// ─── 6ステップの体験フロー ─────────────────────────────────────────────────
+// 1 課題入力 → 2 AI分解 → 3 合格ライン → 4 タスク選択 → 5 集中 → 6 振り返り
+
+export type Step = 1 | 2 | 3 | 4 | 5 | 6;
+
+export const STEP_MAX: Step = 6;
+
+/** 保存データからいま居るべきステップを復元する */
+export function deriveStep(set: TaskSet | null): Step {
+  if (!set || set.tasks.length === 0) return 1;
+  if (set.review) return 6;
+  if (set.passCount === undefined) return 3;
+  return 4;
+}
+
+/** 今日の対象タスク（合格ライン内） */
+export function todayTasks(set: TaskSet): Task[] {
+  const n = set.passCount ?? set.tasks.length;
+  return set.tasks.slice(0, n);
+}
+
+/** 合格ラインの重さを判定。深夜なら基準を厳しくする。 */
+export type LoadLevel = "light" | "fair" | "heavy";
+
+export function judgeLoad(minutes: number, deepNight = false): {
+  level: LoadLevel;
+  label: string;
+  hint: string;
+} {
+  const limitFair = deepNight ? 45 : 90;
+  const limitHeavy = deepNight ? 90 : 180;
+  if (minutes <= limitFair)
+    return {
+      level: "light",
+      label: "無理のない量",
+      hint: "これなら今日のうちに終われるね。",
+    };
+  if (minutes <= limitHeavy)
+    return {
+      level: "fair",
+      label: "ちょうど良い量",
+      hint: "集中すれば届く量。休憩も入れていこう。",
+    };
+  return {
+    level: "heavy",
+    label: "少し多いかも",
+    hint: deepNight
+      ? "この時間からこの量は、明日にひびくかも。"
+      : "欲張りすぎてない？ 減らしても大丈夫だよ。",
+  };
+}
+
+export function fmtMinutes(m: number): string {
+  if (m < 60) return `${m}分`;
+  const h = Math.floor(m / 60);
+  const r = m % 60;
+  return r === 0 ? `${h}時間` : `${h}時間${r}分`;
+}
 
 // ─── Storage keys ──────────────────────────────────────────────────────────
 
@@ -118,33 +179,87 @@ export function pickSample(topic: string): {
 
 // ─── Notification: audio + browser ─────────────────────────────────────────
 
-function playBeep(freq: number, duration: number, delayMs = 0) {
-  setTimeout(() => {
-    try {
+// Shared AudioContext (created lazily on first user-gesture-driven sound)
+let _audioCtx: AudioContext | null = null;
+function getCtx(): AudioContext | null {
+  if (typeof window === "undefined") return null;
+  try {
+    if (!_audioCtx) {
       const AudioCtx =
         window.AudioContext ||
         (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-      const ctx = new AudioCtx();
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.frequency.value = freq;
-      osc.type = "sine";
-      gain.gain.setValueAtTime(0.25, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + duration / 1000);
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start();
-      osc.stop(ctx.currentTime + duration / 1000);
-    } catch {
-      /* audio not available */
+      _audioCtx = new AudioCtx();
     }
-  }, delayMs);
+    if (_audioCtx.state === "suspended") _audioCtx.resume();
+    return _audioCtx;
+  } catch {
+    return null;
+  }
+}
+
+let _muted = false;
+export function setMuted(v: boolean) { _muted = v; }
+export function isMuted() { return _muted; }
+
+type Wave = OscillatorType;
+
+/** 1音を鳴らす。freqは数値 or [start,end]でグライド。 */
+function tone(
+  freq: number | [number, number],
+  duration: number,
+  delayMs = 0,
+  { type = "sine", vol = 0.22 }: { type?: Wave; vol?: number } = {}
+) {
+  if (_muted) return;
+  const ctx = getCtx();
+  if (!ctx) return;
+  const t0 = ctx.currentTime + delayMs / 1000;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = type;
+  if (Array.isArray(freq)) {
+    osc.frequency.setValueAtTime(freq[0], t0);
+    osc.frequency.exponentialRampToValueAtTime(Math.max(1, freq[1]), t0 + duration / 1000);
+  } else {
+    osc.frequency.setValueAtTime(freq, t0);
+  }
+  gain.gain.setValueAtTime(0.0001, t0);
+  gain.gain.exponentialRampToValueAtTime(vol, t0 + 0.01);
+  gain.gain.exponentialRampToValueAtTime(0.0001, t0 + duration / 1000);
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.start(t0);
+  osc.stop(t0 + duration / 1000 + 0.02);
+}
+
+/** 軽いタップ音（ポン） */
+export function playTap() {
+  tone(520, 90, 0, { type: "sine", vol: 0.14 });
+}
+
+/** タスク完了音（ふわっと上がるチャイム2音） */
+export function playComplete() {
+  tone(660, 140, 0, { type: "triangle", vol: 0.2 });
+  tone(880, 200, 110, { type: "triangle", vol: 0.2 });
+}
+
+/** 全完了ファンファーレ（3音の上昇＋キラ） */
+export function playFanfare() {
+  tone(660, 160, 0, { type: "triangle", vol: 0.22 });
+  tone(880, 160, 130, { type: "triangle", vol: 0.22 });
+  tone(1175, 320, 260, { type: "triangle", vol: 0.24 });
+  tone([1400, 2400], 260, 320, { type: "sine", vol: 0.12 });
+}
+
+/** ネムをタップした時のかわいい音 */
+export function playPop() {
+  tone([420, 720], 120, 0, { type: "sine", vol: 0.16 });
 }
 
 export function playAlarm() {
-  playBeep(880, 200, 0);
-  playBeep(880, 200, 300);
-  playBeep(1100, 400, 600);
+  tone(880, 200, 0, { vol: 0.25 });
+  tone(880, 200, 300, { vol: 0.25 });
+  tone(1100, 400, 600, { vol: 0.25 });
 }
 
 export function sendNotification(title: string, body: string) {
