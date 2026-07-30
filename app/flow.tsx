@@ -29,6 +29,7 @@ import {
   MinuteChip,
   PaperCard,
   PaperGauge,
+  Portal,
   Stamp,
   BigCount,
 } from "./ui";
@@ -67,7 +68,7 @@ export function StepInput({
   const [showDeadline, setShowDeadline] = useState(!!deadline);
 
   return (
-    <div className="step-in">
+    <div>
       <NemStage
         state={loading ? "ai-thinking" : topic.trim() ? "typing" : "step-input"}
         isDeepNight={night.isDeepNight}
@@ -204,7 +205,7 @@ export function StepBreakdown({
   const total = set.tasks.reduce((s, t) => s + t.minutes, 0);
 
   return (
-    <div className="step-in">
+    <div>
       <NemStage
         state="after-breakdown"
         isDeepNight={night.isDeepNight}
@@ -379,7 +380,7 @@ export function StepPassLine({
   }
 
   return (
-    <div className="step-in relative">
+    <div className="relative">
       <NemStage
         state={nemState}
         isDeepNight={night.isDeepNight}
@@ -500,20 +501,30 @@ export function StepPassLine({
         この目標で決定 🖋
       </InkButton>
 
-      {/* 決定スタンプ */}
-      <AnimatePresence>
-        {stamping && (
-          <motion.div
-            className="fixed inset-0 z-[65] flex items-center justify-center"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            style={{ background: "rgba(20,26,46,0.32)" }}
+      {/* 決定スタンプ（body 直下に出す） */}
+      {stamping && (
+        <Portal>
+          <div
+            className="fade-in fixed inset-0 z-[80] flex items-center justify-center"
+            style={{ background: "rgba(20,26,46,0.45)", backdropFilter: "blur(2px)" }}
           >
-            <Stamp text="合格ライン" sub="DECIDED" tone="sage" size="lg" />
-          </motion.div>
-        )}
-      </AnimatePresence>
+            {/* 紙に判を押した見え方にする */}
+            <div
+              className="hand-round flex flex-col items-center gap-3 px-9 py-8"
+              style={{
+                background: "#FBF7EC",
+                border: "1.5px solid rgba(34,48,76,0.18)",
+                boxShadow: "0 24px 50px -20px rgba(0,0,0,0.6)",
+              }}
+            >
+              <Stamp text="合格ライン" sub="DECIDED" tone="sage" size="lg" />
+              <p className="text-[13px] font-bold text-[#22304C]">
+                今日は {count} タスクで合格
+              </p>
+            </div>
+          </div>
+        </Portal>
+      )}
     </div>
   );
 }
@@ -577,7 +588,7 @@ export function StepSelect({
     : "select-ask";
 
   return (
-    <div className="step-in">
+    <div>
       <NemStage
         state={nemState}
         isDeepNight={night.isDeepNight}
@@ -642,16 +653,21 @@ export function StepSelect({
       )}
 
       <div className="mt-7 space-y-2.5">
-        <InkButton
-          onClick={onStart}
-          disabled={!selected}
-          className="w-full"
-          glow={!!selected}
-        >
-          {selected ? `⚡ 「${trunc(selected.label, 12)}」に集中する` : "タスクをひとつ選んで"}
-        </InkButton>
+        {/* 今日ぶんが全部終わったら、集中ボタンは出さない */}
+        {list.some((t) => !t.done) && (
+          <InkButton
+            onClick={onStart}
+            disabled={!selected}
+            className="w-full"
+            glow={!!selected}
+          >
+            {selected
+              ? `⚡ 「${trunc(selected.label, 12)}」に集中する`
+              : "タスクをひとつ選んで"}
+          </InkButton>
+        )}
         {reached && (
-          <InkButton onClick={onAllDone} variant="moon" className="w-full">
+          <InkButton onClick={onAllDone} variant="moon" className="w-full" glow>
             今日を振り返って終える →
           </InkButton>
         )}
@@ -775,18 +791,8 @@ export function StepFocus({
   const elapsedRef = useRef(0);
   const notified = useRef({ end: false, m15: false, m30: false });
 
-  // タスクが変わったらリセット
-  useEffect(() => {
-    if (intervalRef.current) clearInterval(intervalRef.current);
-    elapsedRef.current = 0;
-    notified.current = { end: false, m15: false, m30: false };
-    setSeconds(totalSec);
-    setOvertime(0);
-    setIsOver(false);
-    setRunning(false);
-    setExtendCount(0);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [task.id]);
+  // タスクが変わったときのリセットは、呼び出し側が key={task.id} で
+  // この要素を作り直すことで行う（effect内のsetStateを避ける）。
 
   const startInterval = useCallback(() => {
     intervalRef.current = setInterval(() => {
@@ -969,10 +975,11 @@ export function StepFocus({
           <div className="mb-5">
             <NemStage
               state={nemState}
-              isDeepNight
-              isPastMidnight={false}
+              isDeepNight={night.isDeepNight}
+              isPastMidnight={night.isPastMidnight}
               size={58}
               quiet
+              tone="night"
             />
           </div>
 
@@ -1122,7 +1129,7 @@ export function StepReview({
   }
 
   return (
-    <div className="step-in">
+    <div>
       <NemStage
         state={nemState}
         isDeepNight={night.isDeepNight}

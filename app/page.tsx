@@ -35,7 +35,7 @@ import {
 } from "./flow";
 import { LogSheet, SettingsSheet } from "./parts";
 import { Nem } from "./nem";
-import { InkButton, PaperScraps, StepRail } from "./ui";
+import { InkButton, PaperScraps, Portal, StepRail } from "./ui";
 
 const STEP_STORAGE = "task-breaker-step-v1";
 
@@ -129,7 +129,9 @@ export default function Home() {
     if (typeof document === "undefined") return;
     const on = deepNight || step === 5;
     document.documentElement.dataset.night = on ? "true" : "false";
-    if (prevNightRef.current !== null && prevNightRef.current !== on) {
+    // 夜に「入る」ときだけベールを出す。明るい画面に戻るときに
+    // 暗幕が走ると目に痛いので、抜けるときは静かに戻す。
+    if (prevNightRef.current === false && on) {
       setShowNightVeil(true);
       const t = setTimeout(() => setShowNightVeil(false), 1500);
       prevNightRef.current = on;
@@ -418,39 +420,23 @@ export default function Home() {
         </header>
 
         {/* ── ステップレール（集中中は隠して没入させる） ── */}
-        <AnimatePresence initial={false}>
-          {!isFocusStep && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: "auto" }}
-              exit={{ opacity: 0, height: 0 }}
-              transition={{ duration: 0.28 }}
-              className="overflow-hidden"
-            >
-              <div className="mb-6 pt-1">
-                <StepRail
-                  current={step}
-                  maxReached={maxStep}
-                  onJump={(n) => {
-                    const t = n as Step;
-                    if (canGoTo(t)) go(t);
-                  }}
-                />
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {!isFocusStep && (
+          <div className="fade-in mb-6 pt-1">
+            <StepRail
+              current={step}
+              maxReached={maxStep}
+              onJump={(n) => {
+                const t = n as Step;
+                if (canGoTo(t)) go(t);
+              }}
+            />
+          </div>
+        )}
 
-        {/* ── ステップ本体 ── */}
-        <AnimatePresence mode="wait" custom={dir}>
-          <motion.div
-            key={step}
-            custom={dir}
-            initial={{ opacity: 0, x: dir > 0 ? 28 : -28 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: dir > 0 ? -28 : 28 }}
-            transition={{ duration: 0.26, ease: [0.22, 1, 0.36, 1] }}
-          >
+        {/* ── ステップ本体 ──
+            key を変えて差し替えるだけの enter アニメーション。
+            exit の完了待ちがないので、途中で固まる余地がない。 */}
+        <div key={step} className={dir > 0 ? "step-enter-fwd" : "step-enter-back"}>
             {step === 1 && (
               <StepInput
                 topic={draftTopic}
@@ -496,6 +482,7 @@ export default function Home() {
 
             {step === 5 && focusTask && (
               <StepFocus
+                key={focusTask.id}
                 task={focusTask}
                 onComplete={completeFocusTask}
                 onPostpone={postponeFocusTask}
@@ -532,8 +519,7 @@ export default function Home() {
                 </InkButton>
               </div>
             )}
-          </motion.div>
-        </AnimatePresence>
+        </div>
 
         {/* ── 現在の課題名（フローの文脈を常に見せる） ── */}
         {current && step >= 2 && step !== 5 && (
@@ -558,9 +544,17 @@ export default function Home() {
         )}
       </div>
 
-      {/* ── 演出レイヤ ── */}
-      {celebrate && <PaperScraps />}
-      {showNightVeil && <div className="night-veil" />}
+      {/* ── 演出レイヤ（transform の影響を受けないよう body 直下へ） ── */}
+      {celebrate && (
+        <Portal>
+          <PaperScraps />
+        </Portal>
+      )}
+      {showNightVeil && (
+        <Portal>
+          <div className="night-veil" />
+        </Portal>
+      )}
 
       {/* ── シート ── */}
       <AnimatePresence>

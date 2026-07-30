@@ -372,6 +372,7 @@ export function NemStage({
   size = 84,
   quiet = false,
   className = "",
+  tone,
 }: {
   state: NemState;
   isDeepNight: boolean;
@@ -380,6 +381,8 @@ export function NemStage({
   /** 集中中など、吹き出しを最小化したいとき */
   quiet?: boolean;
   className?: string;
+  /** 見た目だけ夜にしたい場合（セリフの深夜判定とは切り離す） */
+  tone?: "light" | "night";
 }) {
   const line = resolveDialogue(state, isDeepNight, isPastMidnight);
   const [override, setOverride] = useState<{ expr: NemExpression; line: string } | null>(null);
@@ -426,7 +429,11 @@ export function NemStage({
         </motion.div>
       </div>
       <div className={`min-w-0 flex-1 ${quiet ? "pt-1" : "pt-3"}`}>
-        <SpeechBubble text={text} tail="left" tone={isDeepNight ? "night" : "light"} />
+        <SpeechBubble
+          text={text}
+          tail="left"
+          tone={tone ?? (isDeepNight ? "night" : "light")}
+        />
       </div>
     </div>
   );

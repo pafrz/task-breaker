@@ -6,7 +6,19 @@
 
 import { motion } from "framer-motion";
 import type { ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { playTap } from "./lib";
+
+// ─── Portal ─────────────────────────────────────────────────────────────────
+// framer-motion が祖先に transform を付けると position:fixed の基準が
+// ビューポートではなくその要素になる。全画面の演出は body 直下に逃がす。
+
+// 呼び出し側は「演出中だけ」マウントするため、初期描画では常に何も出ない。
+// よってサーバー(null)とクライアントで不一致は起きない。
+export function Portal({ children }: { children: ReactNode }) {
+  if (typeof document === "undefined") return null;
+  return createPortal(children, document.body);
+}
 
 // ─── 紙カード ───────────────────────────────────────────────────────────────
 

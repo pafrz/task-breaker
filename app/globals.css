@@ -151,6 +151,7 @@ html[data-night="true"] .sticky-note {
 .btn-ink {
   background: var(--color-ink);
   color: var(--color-paper-2);
+  border: 1.5px solid transparent;
   box-shadow: 3px 3px 0 0 var(--pencil-strong);
   transition: transform 0.09s ease, box-shadow 0.09s ease, background 0.2s ease;
 }
@@ -166,6 +167,7 @@ html[data-night="true"] .btn-ink {
 .btn-moon {
   background: var(--color-moon);
   color: #2a1f06;
+  border: 1.5px solid transparent;
   box-shadow: 3px 3px 0 0 var(--color-moon-deep);
   transition: transform 0.09s ease, box-shadow 0.09s ease;
 }
@@ -189,12 +191,15 @@ html[data-night="true"] .btn-paper {
   color: #e6eaf5;
 }
 
+/* 使えないボタンは「灰色の板」ではなく「まだ書かれていない紙」に見せる */
 .btn-ink:disabled,
 .btn-moon:disabled,
 .btn-paper:disabled {
-  opacity: 0.35;
-  cursor: not-allowed;
+  background: transparent;
+  color: var(--color-ink-faint);
+  border: 1.5px dashed var(--pencil);
   box-shadow: none;
+  cursor: not-allowed;
 }
 
 /* ─── 鉛筆の下線・囲み ─────────────────────────────────────── */
@@ -267,12 +272,20 @@ html[data-night="true"] .field:focus {
 
 /* ─── ステップ切り替え ─────────────────────────────────────── */
 
-@keyframes stepIn {
+/* enter専用。exit待ちを作らないので「前の画面が残って固まる」ことが起きない。 */
+@keyframes stepEnterFwd {
   from { opacity: 0; transform: translateX(26px); }
-  to   { opacity: 1; transform: translateX(0); }
+  to   { opacity: 1; transform: none; }
 }
-.step-in {
-  animation: stepIn 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+@keyframes stepEnterBack {
+  from { opacity: 0; transform: translateX(-26px); }
+  to   { opacity: 1; transform: none; }
+}
+.step-enter-fwd {
+  animation: stepEnterFwd 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.step-enter-back {
+  animation: stepEnterBack 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 @keyframes softAppear {
@@ -369,7 +382,7 @@ html[data-night="true"] .field:focus {
   100% { opacity: 1; transform: scale(1); filter: blur(0); }
 }
 .focus-enter {
-  animation: focusEnter 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: focusEnter 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 @keyframes dimVeil {
