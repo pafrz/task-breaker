@@ -845,7 +845,10 @@ export function StepFocus({
   const [isOver, setIsOver] = useState(false);
   const [extendCount, setExtendCount] = useState(0);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // elapsedRef: 一時停止までに確定した経過秒（小数可）
   const elapsedRef = useRef(0);
+  // startedAtRef: 実行中セグメントの開始時刻（壁時計ms）。停止中は null。
+  const startedAtRef = useRef<number | null>(null);
   const notified = useRef({ end: false, m15: false, m30: false });
   // running は state なので、await をまたぐ連打では古い値が見える。
   // 同期的に読める ref で二重起動を止める。
@@ -854,39 +857,49 @@ export function StepFocus({
   // タスクが変わったときのリセットは、呼び出し側が key={task.id} で
   // この要素を作り直すことで行う（effect内のsetStateを避ける）。
 
+  // いま時点の累計経過秒。setInterval の発火回数ではなく Date.now() の
+  // 差分で測るので、タブが裏に回って interval が間引かれても実時間と
+  // ずれない（「画面を見ていなくても時間どおり知らせる」の土台）。
+  const liveElapsed = useCallback(() => {
+    const base = elapsedRef.current;
+    if (startedAtRef.current == null) return base;
+    return base + (Date.now() - startedAtRef.current) / 1000;
+  }, []);
+
+  // 経過秒を画面へ反映。しきい値は >= 判定なので、裏回りでちょうどの秒を
+  // 踏み飛ばしても取りこぼさない。通知は1回の反映につき最大1件だけ鳴らす。
+  const applyElapsed = useCallback(() => {
+    const elapsed = Math.floor(liveElapsed());
+    if (elapsed < totalSec) {
+      setSeconds(totalSec - elapsed);
+      return;
+    }
+    setSeconds(0);
+    setIsOver(true);
+    const over = elapsed - totalSec;
+    setOvertime(over);
+    const n = notified.current;
+    if (over >= 30 * 60 && !n.m30) {
+      n.m30 = n.m15 = n.end = true;
+      sendNotification("😴 +30分オーバー", "もう寝よ？");
+    } else if (over >= 15 * 60 && !n.m15) {
+      n.m15 = n.end = true;
+      sendNotification("⚠️ +15分オーバー", "肩の力、抜いてみて");
+    } else if (!n.end) {
+      n.end = true;
+      sendNotification("⏰ 時間です", `「${task.label}」の予定時間が終わりました`);
+    }
+  }, [liveElapsed, totalSec, task.label]);
+
   const startInterval = useCallback(() => {
     // 必ず既存を止めてから張る。連打や再入で interval が増殖すると
-    // タイマーが倍速になり、解放されないものが残る。
+    // 解放されないものが残る（壁時計基準なので倍速にはならないが、無駄）。
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
       intervalRef.current = null;
     }
-    intervalRef.current = setInterval(() => {
-      elapsedRef.current += 1;
-      const elapsed = elapsedRef.current;
-      if (elapsed <= totalSec) {
-        setSeconds(totalSec - elapsed);
-        if (elapsed === totalSec) {
-          setIsOver(true);
-          if (!notified.current.end) {
-            notified.current.end = true;
-            sendNotification("⏰ 時間です", `「${task.label}」の予定時間が終わりました`);
-          }
-        }
-      } else {
-        const over = elapsed - totalSec;
-        setOvertime(over);
-        if (over === 15 * 60 && !notified.current.m15) {
-          notified.current.m15 = true;
-          sendNotification("⚠️ +15分オーバー", "肩の力、抜いてみて");
-        }
-        if (over === 30 * 60 && !notified.current.m30) {
-          notified.current.m30 = true;
-          sendNotification("😴 +30分オーバー", "もう寝よ？");
-        }
-      }
-    }, 1000);
-  }, [totalSec, task.label]);
+    intervalRef.current = setInterval(applyElapsed, 1000);
+  }, [applyElapsed]);
 
   // 集中画面を離れたら interval を確実に解放する
   useEffect(() => {
@@ -901,10 +914,28 @@ export function StepFocus({
     };
   }, []);
 
+  // タブに戻った瞬間に即時で実時間へ追いつかせる（裏で間引かれた分を補正）
+  useEffect(() => {
+    function onVisible() {
+      if (runningRef.current) applyElapsed();
+    }
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", onVisible);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", onVisible);
+    };
+  }, [applyElapsed]);
+
   async function toggle() {
     playTap();
     if (runningRef.current) {
+      // 一時停止：実行中セグメントを確定経過へ積む
       runningRef.current = false;
+      if (startedAtRef.current != null) {
+        elapsedRef.current += (Date.now() - startedAtRef.current) / 1000;
+        startedAtRef.current = null;
+      }
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
         intervalRef.current = null;
@@ -917,12 +948,15 @@ export function StepFocus({
     await ensureNotifyPermission();
     // 待っている間に停止された場合は張らない
     if (!runningRef.current) return;
+    startedAtRef.current = Date.now();
     startInterval();
+    applyElapsed(); // 即時反映
   }
 
   function extend(min: number) {
     playTap();
     elapsedRef.current = Math.max(0, totalSec - min * 60);
+    startedAtRef.current = Date.now();
     notified.current = { end: false, m15: false, m30: false };
     setIsOver(false);
     setOvertime(0);
